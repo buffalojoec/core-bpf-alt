@@ -1,5 +1,14 @@
 #![cfg(feature = "test-sbf")]
 
+use {
+    assert_matches::assert_matches,
+    common::{assert_ix_error, setup_test_context},
+    solana_program_test::*,
+    solana_sdk::{
+        clock::Slot, instruction::InstructionError, pubkey::Pubkey, signature::Signer,
+        transaction::Transaction,
+    },
+};
 #[cfg(feature = "relax-authority-checks-disabled")]
 use {
     solana_programs_address_lookup_table::instruction::create_lookup_table_signed,
@@ -13,27 +22,16 @@ use {
     },
     solana_sdk::rent::Rent,
 };
-use {
-    assert_matches::assert_matches,
-    common::{assert_ix_error, overwrite_slot_hashes_with_slots, setup_test_context},
-    solana_program_test::*,
-    solana_sdk::{
-        clock::Slot, instruction::InstructionError, pubkey::Pubkey, signature::Signer,
-        transaction::Transaction,
-    },
-};
 
 mod common;
 
 #[cfg(not(feature = "relax-authority-checks-disabled"))]
 #[tokio::test]
 async fn test_create_lookup_table_idempotent() {
-    use std::println;
-
     let mut context = setup_test_context().await;
 
     let test_recent_slot = 123;
-    overwrite_slot_hashes_with_slots(&context, &[test_recent_slot]);
+    context.warp_to_slot(test_recent_slot).unwrap();
 
     let client = &mut context.banks_client;
     let payer = &context.payer;
@@ -41,9 +39,6 @@ async fn test_create_lookup_table_idempotent() {
     let authority_address = Pubkey::new_unique();
     let (create_lookup_table_ix, lookup_table_address) =
         create_lookup_table(authority_address, payer.pubkey(), test_recent_slot);
-
-    println!("Lookup table key: {}", lookup_table_address.to_string());
-    println!("Authority key: {}", authority_address.to_string());
 
     // First create should succeed
     {
@@ -103,7 +98,7 @@ async fn test_create_lookup_table_not_idempotent() {
     let mut context = setup_test_context().await;
 
     let test_recent_slot = 123;
-    overwrite_slot_hashes_with_slots(&context, &[test_recent_slot]);
+    context.warp_to_slot(test_recent_slot).unwrap();
 
     let client = &mut context.banks_client;
     let payer = &context.payer;
@@ -144,7 +139,7 @@ async fn test_create_lookup_table_use_payer_as_authority() {
     let mut context = setup_test_context().await;
 
     let test_recent_slot = 123;
-    overwrite_slot_hashes_with_slots(&context, &[test_recent_slot]);
+    context.warp_to_slot(test_recent_slot).unwrap();
 
     let client = &mut context.banks_client;
     let payer = &context.payer;
@@ -208,8 +203,10 @@ async fn test_create_lookup_table_not_recent_slot() {
 #[tokio::test]
 async fn test_create_lookup_table_pda_mismatch() {
     let mut context = setup_test_context().await;
+
     let test_recent_slot = 123;
-    overwrite_slot_hashes_with_slots(&context, &[test_recent_slot]);
+    context.warp_to_slot(test_recent_slot).unwrap();
+
     let payer = &context.payer;
     let authority_address = Pubkey::new_unique();
 

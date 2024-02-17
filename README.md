@@ -52,3 +52,17 @@ Until we can use `solana-program-test` to test Core BPF programs in place of
 their built-in counterparts, we have to use a different address to test.
 
 See [`lib.rs`](./src/lib.rs).
+
+### `SlotHashes` Sysvar
+
+I've replaced the slot-based indexing of lookup tables with a manual
+mathematical calculation of both recent slot and deactivation cooldown.
+However, this method no longer uses hashes but instead uses slots, which means
+that it no longer covers the case of a skipped slot.
+
+If it's imperative to ensure we are only considering slots where blocks were
+created, then we'll likely need to provide the `SlotHashes` account to the ALT
+program on `create` and `close`, so we can reliably check slot hashes.
+
+If it's _not_ important, I'll have to re-write the state tests to avoid using
+`SlotHashes` directly, to avoid confusion and provide consistency.

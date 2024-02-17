@@ -6,7 +6,8 @@ use {
     crate::{
         instruction::ProgramInstruction as AddressLookupTableInstruction,
         state::{
-            AddressLookupTable, ProgramState, LOOKUP_TABLE_MAX_ADDRESSES, LOOKUP_TABLE_META_SIZE,
+            AddressLookupTable, LookupTableStatus, ProgramState, LOOKUP_TABLE_MAX_ADDRESSES,
+            LOOKUP_TABLE_META_SIZE,
         },
     },
     solana_program::{
@@ -18,6 +19,7 @@ use {
         program_error::ProgramError,
         pubkey::{Pubkey, PUBKEY_BYTES},
         rent::Rent,
+        slot_hashes::MAX_ENTRIES,
         system_instruction,
         sysvar::Sysvar,
     },
@@ -82,22 +84,14 @@ fn process_create_lookup_table(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // TODO: `SlotHashes` is not available to BPF programs.
-    // Ideally we can introduce a truncated version of `SlotHashes` that only
-    // contains the most recent slot hashes.
-    // let derivation_slot = {
-    //     let slot_hashes = <SlotHashes as Sysvar>::get()?;
-    //     if slot_hashes.get(&untrusted_recent_slot).is_some() {
-    //         Ok(untrusted_recent_slot)
-    //     } else {
-    //         msg!("{} is not a recent slot", untrusted_recent_slot);
-    //         Err(ProgramError::InvalidInstructionData)
-    //     }
-    // }?;
-    //
-    // Fake check!
+    // Since the `SlotHashes` sysvar is not available to BPF programs, checking
+    // if a slot is a valid recent slot must be done differently.
+    // The `SlotHashes` sysvar stores up to `512` recent slots (`MAX_ENTRIES`).
+    // We can instead use the `Clock` sysvar and do this math manually.
     let derivation_slot = {
-        if untrusted_recent_slot == 123 {
+        let clock = <Clock as Sysvar>::get()?;
+        let oldest_possible_slot = clock.slot.saturating_sub(MAX_ENTRIES as u64);
+        if untrusted_recent_slot > oldest_possible_slot && untrusted_recent_slot <= clock.slot {
             Ok(untrusted_recent_slot)
         } else {
             msg!("{} is not a recent slot", untrusted_recent_slot);
@@ -456,28 +450,24 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
+
+        let clock = <Clock as Sysvar>::get()?;
+
+        match lookup_table.meta.status(clock.slot) {
+            LookupTableStatus::Activated => {
+                msg!("Lookup table is not deactivated");
+                Err(ProgramError::InvalidArgument)
+            }
+            LookupTableStatus::Deactivating { remaining_blocks } => {
+                msg!(
+                    "Table cannot be closed until it's fully deactivated in {} blocks",
+                    remaining_blocks
+                );
+                Err(ProgramError::InvalidArgument)
+            }
+            LookupTableStatus::Deactivated => Ok(()),
+        }?;
     }
-
-    let _clock = <Clock as Sysvar>::get()?;
-    // TODO: `SlotHashes` is not available to BPF programs.
-    // Ideally we can introduce a truncated version of `SlotHashes` that only
-    // contains the most recent slot hashes.
-    // let slot_hashes = <SlotHashes as Sysvar>::get()?;
-
-    // match lookup_table.meta.status(clock.slot, &slot_hashes) {
-    //     LookupTableStatus::Activated => {
-    //         msg!("Lookup table is not deactivated");
-    //         Err(ProgramError::InvalidArgument)
-    //     },
-    //     LookupTableStatus::Deactivating { remaining_blocks } => {
-    //         msg!(
-    //             "Table cannot be closed until it's fully deactivated in {}
-    // blocks",             remaining_blocks
-    //         );
-    //         Err(ProgramError::InvalidArgument)
-    //     },
-    //     LookupTableStatus::Deactivated => Ok(()),
-    // }?;
 
     let new_recipient_lamports = lookup_table_info
         .lamports()

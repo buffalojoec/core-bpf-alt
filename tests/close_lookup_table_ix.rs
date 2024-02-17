@@ -3,15 +3,17 @@
 use {
     assert_matches::assert_matches,
     common::{
-        add_lookup_table_account, assert_ix_error, new_address_lookup_table,
-        overwrite_slot_hashes_with_slots, setup_test_context,
+        add_lookup_table_account, assert_ix_error, new_address_lookup_table, setup_test_context,
     },
     solana_program_test::*,
     solana_programs_address_lookup_table::instruction::close_lookup_table,
     solana_sdk::{
+        clock::Clock,
         instruction::InstructionError,
         pubkey::Pubkey,
         signature::{Keypair, Signer},
+        slot_hashes::SlotHashes,
+        sysvar::Sysvar,
         transaction::Transaction,
     },
 };
@@ -21,7 +23,9 @@ mod common;
 #[tokio::test]
 async fn test_close_lookup_table() {
     let mut context = setup_test_context().await;
-    overwrite_slot_hashes_with_slots(&context, &[]);
+    context
+        .warp_to_slot(SlotHashes::size_of() as u64 + 1)
+        .unwrap();
 
     let lookup_table_address = Pubkey::new_unique();
     let authority_keypair = Keypair::new();
@@ -54,106 +58,93 @@ async fn test_close_lookup_table() {
         .is_none());
 }
 
-// TODO: `SlotHashes` is not available to BPF programs.
-// Ideally we can introduce a truncated version of `SlotHashes` that only
-// contains the most recent slot hashes.
-// #[tokio::test]
-// async fn test_close_lookup_table_not_deactivated() {
-//     let mut context = setup_test_context().await;
+#[tokio::test]
+async fn test_close_lookup_table_not_deactivated() {
+    let mut context = setup_test_context().await;
 
-//     let authority_keypair = Keypair::new();
-//     let initialized_table =
-// new_address_lookup_table(Some(authority_keypair.pubkey()), 0);
-//     let lookup_table_address = Pubkey::new_unique();
-//     add_lookup_table_account(&mut context, lookup_table_address,
-// initialized_table).await;
+    let authority_keypair = Keypair::new();
+    let initialized_table = new_address_lookup_table(Some(authority_keypair.pubkey()), 0);
+    let lookup_table_address = Pubkey::new_unique();
+    add_lookup_table_account(&mut context, lookup_table_address, initialized_table).await;
 
-//     let ix = close_lookup_table(
-//         lookup_table_address,
-//         authority_keypair.pubkey(),
-//         context.payer.pubkey(),
-//     );
+    let ix = close_lookup_table(
+        lookup_table_address,
+        authority_keypair.pubkey(),
+        context.payer.pubkey(),
+    );
 
-//     // The ix should fail because the table hasn't been deactivated yet
-//     assert_ix_error(
-//         &mut context,
-//         ix,
-//         Some(&authority_keypair),
-//         InstructionError::InvalidArgument,
-//     )
-//     .await;
-// }
+    // The ix should fail because the table hasn't been deactivated yet
+    assert_ix_error(
+        &mut context,
+        ix,
+        Some(&authority_keypair),
+        InstructionError::InvalidArgument,
+    )
+    .await;
+}
 
-// TODO: `SlotHashes` is not available to BPF programs.
-// Ideally we can introduce a truncated version of `SlotHashes` that only
-// contains the most recent slot hashes.
-// #[tokio::test]
-// async fn test_close_lookup_table_deactivated_in_current_slot() {
-//     let mut context = setup_test_context().await;
+#[tokio::test]
+async fn test_close_lookup_table_deactivated_in_current_slot() {
+    let mut context = setup_test_context().await;
 
-//     let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
-//     let authority_keypair = Keypair::new();
-//     let initialized_table = {
-//         let mut table =
-// new_address_lookup_table(Some(authority_keypair.pubkey()), 0);         table.
-// meta.deactivation_slot = clock.slot;         table
-//     };
-//     let lookup_table_address = Pubkey::new_unique();
-//     add_lookup_table_account(&mut context, lookup_table_address,
-// initialized_table).await;
+    let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+    let authority_keypair = Keypair::new();
+    let initialized_table = {
+        let mut table = new_address_lookup_table(Some(authority_keypair.pubkey()), 0);
+        table.meta.deactivation_slot = clock.slot;
+        table
+    };
+    let lookup_table_address = Pubkey::new_unique();
+    add_lookup_table_account(&mut context, lookup_table_address, initialized_table).await;
 
-//     let ix = close_lookup_table(
-//         lookup_table_address,
-//         authority_keypair.pubkey(),
-//         context.payer.pubkey(),
-//     );
+    let ix = close_lookup_table(
+        lookup_table_address,
+        authority_keypair.pubkey(),
+        context.payer.pubkey(),
+    );
 
-//     // Context sets up the slot hashes sysvar to have an entry
-//     // for slot 0 which is when the table was deactivated.
-//     // Because that slot is present, the ix should fail.
-//     assert_ix_error(
-//         &mut context,
-//         ix,
-//         Some(&authority_keypair),
-//         InstructionError::InvalidArgument,
-//     )
-//     .await;
-// }
+    // Context sets up the slot hashes sysvar to have an entry
+    // for slot 0 which is when the table was deactivated.
+    // Because that slot is present, the ix should fail.
+    assert_ix_error(
+        &mut context,
+        ix,
+        Some(&authority_keypair),
+        InstructionError::InvalidArgument,
+    )
+    .await;
+}
 
-// TODO: `SlotHashes` is not available to BPF programs.
-// Ideally we can introduce a truncated version of `SlotHashes` that only
-// contains the most recent slot hashes.
-// #[tokio::test]
-// async fn test_close_lookup_table_recently_deactivated() {
-//     let mut context = setup_test_context().await;
+#[tokio::test]
+async fn test_close_lookup_table_recently_deactivated() {
+    let mut context = setup_test_context().await;
 
-//     let authority_keypair = Keypair::new();
-//     let initialized_table = {
-//         let mut table =
-// new_address_lookup_table(Some(authority_keypair.pubkey()), 0);         table.
-// meta.deactivation_slot = 0;         table
-//     };
-//     let lookup_table_address = Pubkey::new_unique();
-//     add_lookup_table_account(&mut context, lookup_table_address,
-// initialized_table).await;
+    let authority_keypair = Keypair::new();
+    let initialized_table = {
+        let mut table = new_address_lookup_table(Some(authority_keypair.pubkey()), 0);
+        table.meta.deactivation_slot = 0;
+        table
+    };
+    let lookup_table_address = Pubkey::new_unique();
+    add_lookup_table_account(&mut context, lookup_table_address, initialized_table).await;
 
-//     let ix = close_lookup_table(
-//         lookup_table_address,
-//         authority_keypair.pubkey(),
-//         context.payer.pubkey(),
-//     );
+    let ix = close_lookup_table(
+        lookup_table_address,
+        authority_keypair.pubkey(),
+        context.payer.pubkey(),
+    );
 
-//     // Context sets up the slot hashes sysvar to have an entry
-//     // for slot 0 which is when the table was deactivated.
-//     // Because that slot is present, the ix should fail.
-//     assert_ix_error(
-//         &mut context,
-//         ix,
-//         Some(&authority_keypair),
-//         InstructionError::InvalidArgument,
-//     )
-//     .await;
-// }
+    // Context sets up the slot hashes sysvar to have an entry
+    // for slot 0 which is when the table was deactivated.
+    // Because that slot is present, the ix should fail.
+    assert_ix_error(
+        &mut context,
+        ix,
+        Some(&authority_keypair),
+        InstructionError::InvalidArgument,
+    )
+    .await;
+}
 
 #[tokio::test]
 async fn test_close_immutable_lookup_table() {
