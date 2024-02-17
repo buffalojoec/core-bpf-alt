@@ -1,5 +1,5 @@
 use {
-    crate::error::AddressLookupError,
+    crate::error::{AddressLookupError, MapToProgramIoError},
     serde::{Deserialize, Serialize},
     // solana_frozen_abi_macro::{AbiEnumVisitor, AbiExample},
     solana_program::{
@@ -89,6 +89,15 @@ impl LookupTableMeta {
         }
     }
 
+    // This function has been modified from its legacy built-in counterpart
+    // to no longer use the `SlotHashes` sysvar, since it is not available
+    // for BPF programs. Instead, it uses the `current_slot` parameter to
+    // calculate the table's status.
+    // This will no longer consider the case where a slot has been skipped
+    // and no block was produced.
+    // If it's imperative to ensure we are only considering slots where blocks
+    // were created, then we'll need to revisit this function, and possibly
+    // provide the `SlotHashes` account so we can reliably check slot hashes.
     /// Return the current status of the lookup table
     pub fn status(&self, current_slot: Slot) -> LookupTableStatus {
         if self.deactivation_slot == Slot::MAX {
@@ -126,8 +135,8 @@ impl LookupTableMeta {
     PartialEq,
     Eq,
     Clone,
-    /* AbiExample, AbiEnumVisitor, // This can only be added once `ProgramState` is out of the
-     * SDK */
+    /* AbiExample,      // This can only be added once `ProgramState` is out of the SDK
+     * AbiEnumVisitor,  // This can only be added once `ProgramState` is out of the SDK */
 )]
 #[allow(clippy::large_enum_variant)]
 pub enum ProgramState {
@@ -138,22 +147,13 @@ pub enum ProgramState {
 }
 
 impl ProgramState {
-    fn serialize(&self, data: &mut [u8]) -> Result<(), ProgramError> {
-        bincode::serialize_into(data, self)
-            .map_err(|_| AddressLookupError::SerializationError.into())
-    }
-
+    /// Serialize a new lookup table into uninitialized account data.
     pub fn serialize_new_lookup_table(
         data: &mut [u8],
         authority_key: &Pubkey,
     ) -> Result<(), ProgramError> {
         let lookup_table = ProgramState::LookupTable(LookupTableMeta::new(*authority_key));
-        lookup_table.serialize(data)
-    }
-
-    pub fn overwrite(&self, data: &mut [u8]) -> Result<(), ProgramError> {
-        data.fill(0);
-        self.serialize(data)
+        bincode::serialize_into(data, &lookup_table).map_to_program_io_error()
     }
 }
 
@@ -181,20 +181,7 @@ impl<'a> AddressLookupTable<'a> {
             .ok_or(ProgramError::InvalidAccountData)?;
         meta_data.fill(0);
         bincode::serialize_into(meta_data, &ProgramState::LookupTable(lookup_table_meta))
-            .map_err::<ProgramError, _>(|_| AddressLookupError::SerializationError.into())?;
-        Ok(())
-    }
-
-    /// Serialize an address table's updated addresses and zero
-    /// any leftover bytes.
-    pub fn overwrite_addresses(data: &mut [u8], addresses: &[Pubkey]) -> Result<(), ProgramError> {
-        let addresses_data = data
-            .get_mut(LOOKUP_TABLE_META_SIZE..)
-            .ok_or(ProgramError::InvalidAccountData)?;
-        addresses_data.fill(0);
-        let addresses_data = bytemuck::try_cast_slice_mut(addresses_data)
-            .map_err::<ProgramError, _>(|_| AddressLookupError::SerializationError.into())?;
-        addresses_data[..addresses.len()].copy_from_slice(addresses);
+            .map_to_program_io_error()?;
         Ok(())
     }
 

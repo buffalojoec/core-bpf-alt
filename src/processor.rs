@@ -46,7 +46,7 @@ fn process_create_lookup_table(
     let lookup_table_info = next_account_info(accounts_iter)?;
     let authority_info = next_account_info(accounts_iter)?;
     let payer_info = next_account_info(accounts_iter)?;
-    let system_program_info = next_account_info(accounts_iter)?;
+    let _system_program_info = next_account_info(accounts_iter)?;
 
     // Feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
     // (relax_authority_signer_check_for_lookup_table_creation) is enabled on
@@ -98,6 +98,9 @@ fn process_create_lookup_table(
     // if a slot is a valid recent slot must be done differently.
     // The `SlotHashes` sysvar stores up to `512` recent slots (`MAX_ENTRIES`).
     // We can instead use the `Clock` sysvar and do this math manually.
+    //
+    // Note this will no longer consider skipped slots wherein a block was not
+    // produced.
     let derivation_slot = {
         let clock = <Clock as Sysvar>::get()?;
         let oldest_possible_slot = clock.slot.saturating_sub(MAX_ENTRIES as u64);
@@ -128,8 +131,10 @@ fn process_create_lookup_table(
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Check not required after "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
-    // is activated on mainnet-beta.
+    // This check _is required_ after
+    // "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap" is activated on
+    // mainnet-beta.
+    // See https://github.com/solana-labs/solana/blob/e4064023bf7936ced97b0d4de22137742324983d/programs/address-lookup-table/src/processor.rs#L129-L135
     #[cfg(not(feature = "relax-authority-checks-disabled"))]
     if check_id(lookup_table_info.owner) {
         return Ok(());
@@ -145,17 +150,13 @@ fn process_create_lookup_table(
     if required_lamports > 0 {
         invoke(
             &system_instruction::transfer(payer_info.key, lookup_table_info.key, required_lamports),
-            &[
-                payer_info.clone(),
-                lookup_table_info.clone(),
-                system_program_info.clone(),
-            ],
+            &[payer_info.clone(), lookup_table_info.clone()],
         )?;
     }
 
     invoke_signed(
         &system_instruction::allocate(lookup_table_info.key, lookup_table_data_len as u64),
-        &[lookup_table_info.clone(), system_program_info.clone()],
+        &[lookup_table_info.clone()],
         &[&[
             authority_info.key.as_ref(),
             &derivation_slot.to_le_bytes(),
@@ -165,7 +166,7 @@ fn process_create_lookup_table(
 
     invoke_signed(
         &system_instruction::assign(lookup_table_info.key, program_id),
-        &[lookup_table_info.clone(), system_program_info.clone()],
+        &[lookup_table_info.clone()],
         &[&[
             authority_info.key.as_ref(),
             &derivation_slot.to_le_bytes(),
@@ -296,7 +297,7 @@ fn process_extend_lookup_table(
         if clock.slot != lookup_table.meta.last_extended_slot {
             lookup_table.meta.last_extended_slot = clock.slot;
             lookup_table.meta.last_extended_slot_start_index =
-                u8::try_from(lookup_table.addresses.len()).map_err(|_| {
+                u8::try_from(old_table_addresses_len).map_err(|_| {
                     // This is impossible as long as the length of new_addresses
                     // is non-zero and LOOKUP_TABLE_MAX_ADDRESSES == u8::MAX + 1.
                     ProgramError::InvalidAccountData
@@ -448,6 +449,13 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
 
         let clock = <Clock as Sysvar>::get()?;
 
+        // Again, since the `SlotHashes` sysvar is not available to BPF programs,
+        // we can't use the `SlotHashes` sysvar to check the status of a lookup
+        // table.
+        // Again we instead use the `Clock` sysvar here.
+        // This will no longer consider skipped slots wherein a block was not
+        // produced.
+        // See `state::LookupTableMeta::status` for more details.
         match lookup_table.meta.status(clock.slot) {
             LookupTableStatus::Activated => {
                 msg!("Lookup table is not deactivated");
@@ -472,6 +480,7 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
     **lookup_table_info.try_borrow_mut_lamports()? = 0;
     **recipient_info.try_borrow_mut_lamports()? = new_recipient_lamports;
 
+    // Lookup tables are _not_ reassigned when closed.
     lookup_table_info.realloc(0, true)?;
 
     Ok(())

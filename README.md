@@ -21,6 +21,19 @@ implementation once activated. They include:
 - The Rust feature flag I'm using to mock this feature ID:
   `relax-authority-checks-disabled`.
 
+### `solana_frozen_abi`
+
+Members of the ALT program's state implement `AbiEnumVisitor` and `AbiExample`,
+but because these live outside of `solana_program` but the original built-in
+ALT program lives within `solana_program`, there are trait collisions when
+these are added to the program.
+
+We'll need to remove all of the built-in ALT code from the SDK in order to
+properly add these trait implementations to the Core BPF source.
+
+This can likely be done in a single step when we replace the ALT source code
+within the Solana SDK with the Core BPF program's crate.
+
 ### Error Codes
 
 Since built-in programs throw `InstructionError` and BPF programs throw
@@ -35,6 +48,12 @@ in `InstructionError`. I've added these variants in this PR.
 <https://github.com/solana-labs/solana/pull/35113>
 
 We simply have to wait until those errors are available with the next release.
+
+Additionally, we should consider adding `bincode` support to
+`Into<ProgramError>`, especially if we plan to continue to use `bincode` within
+Core BPF programs.
+
+See my notes in [`error.rs`](./src/error.rs);
 
 ### Program-Test
 
