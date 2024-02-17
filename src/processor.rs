@@ -4,7 +4,7 @@
 use crate::check_id;
 use {
     crate::{
-        instruction::ProgramInstruction as AddressLookupTableInstruction,
+        instruction::ProgramInstruction,
         state::{
             AddressLookupTable, LookupTableStatus, ProgramState, LOOKUP_TABLE_MAX_ADDRESSES,
             LOOKUP_TABLE_META_SIZE,
@@ -24,6 +24,16 @@ use {
         sysvar::Sysvar,
     },
 };
+
+fn limited_deserialize<T>(input: &[u8]) -> Result<T, ProgramError>
+where
+    T: serde::de::DeserializeOwned,
+{
+    solana_program::program_utils::limited_deserialize(
+        input, 1232, // See `solana_sdk::packet::PACKET_DATA_SIZE`
+    )
+    .map_err(|_| ProgramError::InvalidInstructionData)
+}
 
 fn process_create_lookup_table(
     program_id: &Pubkey,
@@ -163,7 +173,6 @@ fn process_create_lookup_table(
         ]],
     )?;
 
-    // TODO: Re-work some of this serialization logic
     ProgramState::serialize_new_lookup_table(
         *lookup_table_info.try_borrow_mut_data()?,
         authority_info.key,
@@ -188,9 +197,7 @@ fn process_freeze_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) ->
     }
 
     let mut lookup_table_meta = {
-        // Scope the borrow
         let lookup_table_data = lookup_table_info.try_borrow_data()?;
-        // TODO: Re-work some of this serialization logic
         let lookup_table = AddressLookupTable::deserialize(&lookup_table_data)?;
 
         if lookup_table.meta.authority.is_none() {
@@ -216,7 +223,6 @@ fn process_freeze_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) ->
         lookup_table.meta
     };
 
-    // TODO: Re-work some of this serialization logic
     lookup_table_meta.authority = None;
     AddressLookupTable::overwrite_meta_data(
         *lookup_table_info.try_borrow_mut_data()?,
@@ -245,9 +251,8 @@ fn process_extend_lookup_table(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    let (lookup_table_meta, lookup_table_addresses, new_table_data_len) = {
-        let lookup_table_data = lookup_table_info.try_borrow_mut_data()?;
-        // TODO: Re-work some of this serialization logic
+    let (lookup_table_meta, old_table_data_len, new_table_data_len) = {
+        let lookup_table_data = lookup_table_info.try_borrow_data()?;
         let mut lookup_table = AddressLookupTable::deserialize(&lookup_table_data)?;
 
         if lookup_table.meta.authority.is_none() {
@@ -275,10 +280,9 @@ fn process_extend_lookup_table(
             return Err(ProgramError::InvalidInstructionData);
         }
 
-        let new_table_addresses_len = lookup_table
-            .addresses
-            .len()
-            .saturating_add(new_addresses.len());
+        let old_table_addresses_len = lookup_table.addresses.len();
+        let new_table_addresses_len = old_table_addresses_len.saturating_add(new_addresses.len());
+
         if new_table_addresses_len > LOOKUP_TABLE_MAX_ADDRESSES {
             msg!(
                 "Extended lookup table length {} would exceed max capacity of {}",
@@ -299,35 +303,31 @@ fn process_extend_lookup_table(
                 })?;
         }
 
+        let old_table_data_len = LOOKUP_TABLE_META_SIZE
+            .checked_add(old_table_addresses_len.saturating_mul(PUBKEY_BYTES))
+            .ok_or(ProgramError::ArithmeticOverflow)?;
         let new_table_data_len = LOOKUP_TABLE_META_SIZE
             .checked_add(new_table_addresses_len.saturating_mul(PUBKEY_BYTES))
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        let lookup_table_meta = lookup_table.meta;
-        let mut lookup_table_addresses = lookup_table.addresses.to_vec();
-        for new_address in new_addresses {
-            lookup_table_addresses.push(new_address);
-        }
-
-        (
-            lookup_table_meta,
-            lookup_table_addresses,
-            new_table_data_len,
-        )
+        (lookup_table.meta, old_table_data_len, new_table_data_len)
     };
 
-    // TODO: Re-work some of this serialization logic
     AddressLookupTable::overwrite_meta_data(
         *lookup_table_info.try_borrow_mut_data()?,
         lookup_table_meta,
     )?;
 
-    // TODO: Re-work some of this serialization logic
     lookup_table_info.realloc(new_table_data_len, false)?;
-    AddressLookupTable::overwrite_addresses(
-        *lookup_table_info.try_borrow_mut_data()?,
-        lookup_table_addresses.as_slice(),
-    )?;
+
+    {
+        let mut lookup_table_data = lookup_table_info.try_borrow_mut_data()?;
+        let uninitialized_addresses = AddressLookupTable::deserialize_addresses_from_index_mut(
+            &mut lookup_table_data,
+            old_table_data_len,
+        )?;
+        uninitialized_addresses.copy_from_slice(&new_addresses);
+    }
 
     let rent = <Rent as Sysvar>::get()?;
     let required_lamports = rent
@@ -369,9 +369,7 @@ fn process_deactivate_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]
     }
 
     let mut lookup_table_meta = {
-        // Scope the borrow
         let lookup_table_data = lookup_table_info.try_borrow_data()?;
-        // TODO: Re-work some of this serialization logic
         let lookup_table = AddressLookupTable::deserialize(&lookup_table_data)?;
 
         if lookup_table.meta.authority.is_none() {
@@ -396,7 +394,6 @@ fn process_deactivate_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]
     let clock = <Clock as Sysvar>::get()?;
     lookup_table_meta.deactivation_slot = clock.slot;
 
-    // TODO: Re-work some of this serialization logic
     AddressLookupTable::overwrite_meta_data(
         *lookup_table_info.try_borrow_mut_data()?,
         lookup_table_meta,
@@ -434,9 +431,7 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
     }
 
     {
-        // Scope the borrow
         let lookup_table_data = lookup_table_info.try_borrow_data()?;
-        // TODO: Re-work some of this serialization logic
         let lookup_table = AddressLookupTable::deserialize(&lookup_table_data)?;
 
         if lookup_table.meta.authority.is_none() {
@@ -482,36 +477,31 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
     Ok(())
 }
 
-/// Processes an `AddressLookupTableInstruction`
+/// Processes a
+/// `solana_programs_address_lookup_table::instruction::ProgramInstruction`
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
-    // TODO: The legacy built-in version of ALT deserializes the input with
-    // `limited_deserialize`.
-    // `limited_deserialize` may offer some performance benefits, but the
-    // resulting error is still `InstructionError::InvalidInstructionData`, so
-    // we have ABI compatibility here.
-    let instruction =
-        bincode::deserialize(input).map_err(|_| ProgramError::InvalidInstructionData)?;
+    let instruction = limited_deserialize(input)?;
     match instruction {
-        AddressLookupTableInstruction::CreateLookupTable {
+        ProgramInstruction::CreateLookupTable {
             recent_slot,
             bump_seed,
         } => {
             msg!("Instruction: CreateLookupTable");
             process_create_lookup_table(program_id, accounts, recent_slot, bump_seed)
         }
-        AddressLookupTableInstruction::FreezeLookupTable => {
+        ProgramInstruction::FreezeLookupTable => {
             msg!("Instruction: FreezeLookupTable");
             process_freeze_lookup_table(program_id, accounts)
         }
-        AddressLookupTableInstruction::ExtendLookupTable { new_addresses } => {
+        ProgramInstruction::ExtendLookupTable { new_addresses } => {
             msg!("Instruction: ExtendLookupTable");
             process_extend_lookup_table(program_id, accounts, new_addresses)
         }
-        AddressLookupTableInstruction::DeactivateLookupTable => {
+        ProgramInstruction::DeactivateLookupTable => {
             msg!("Instruction: DeactivateLookupTable");
             process_deactivate_lookup_table(program_id, accounts)
         }
-        AddressLookupTableInstruction::CloseLookupTable => {
+        ProgramInstruction::CloseLookupTable => {
             msg!("Instruction: CloseLookupTable");
             process_close_lookup_table(program_id, accounts)
         }

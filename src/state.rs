@@ -5,7 +5,7 @@ use {
     solana_program::{
         clock::Slot, program_error::ProgramError, pubkey::Pubkey, slot_hashes::MAX_ENTRIES,
     },
-    std::{borrow::Cow, u8},
+    std::borrow::Cow,
 };
 
 /// The maximum number of addresses that a lookup table can hold
@@ -16,10 +16,6 @@ pub const LOOKUP_TABLE_META_SIZE: usize = 56;
 
 fn calculate_slot_position(target_slot: &Slot, current_slot: &Slot) -> Option<usize> {
     let position = current_slot.saturating_sub(*target_slot);
-
-    println!("Current slot: {}", current_slot);
-    println!("Target slot: {}", target_slot);
-    println!("Position: {}", position);
 
     if position >= (MAX_ENTRIES as u64) {
         return None;
@@ -251,6 +247,21 @@ impl<'a> AddressLookupTable<'a> {
             data.extend_from_slice(address.as_ref());
         });
         Ok(data)
+    }
+
+    /// Mutably deserialize addresses from a lookup table's data.
+    pub fn deserialize_addresses_from_index_mut(
+        data: &mut [u8],
+        start_index: usize,
+    ) -> Result<&mut [Pubkey], ProgramError> {
+        if start_index < LOOKUP_TABLE_META_SIZE || start_index >= data.len() {
+            return Err(ProgramError::InvalidArgument);
+        }
+        bytemuck::try_cast_slice_mut(&mut data[start_index..]).map_err(|_| {
+            // Should be impossible because raw address data
+            // should be aligned and sized in multiples of 32 bytes
+            ProgramError::InvalidAccountData
+        })
     }
 
     /// Efficiently deserialize an address table without allocating
