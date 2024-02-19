@@ -61,11 +61,16 @@ See my notes in [`error.rs`](./src/error.rs);
 provided shares the same address as an existing built-in.
 
 Technically this is not an issue with `solana-program-test` but with the
-runtime.
+program runtime.
 
-I'm in the process of adding the Core BPF migration codepath to the runtime,
-which will allow for built-ins to be manipulated, rather than a static
-immutable list.
+At the time of this writing, Alexander has created a PR to allow
+`LoadedPrograms::assign_program()` to overwrite builtins, and I've created a
+PR on top of his to provide the necessary functionality to
+`solana-program-test`.
+
+<https://github.com/solana-labs/solana/pull/35233>
+
+<https://github.com/solana-labs/solana/pull/35242>
 
 Until we can use `solana-program-test` to test Core BPF programs in place of
 their built-in counterparts, we have to use a different address to test.
