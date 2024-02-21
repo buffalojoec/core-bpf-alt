@@ -31,6 +31,8 @@ pub enum LookupTableStatus {
     Deactivated,
 }
 
+// TODO: `Abi` & `AbiExample` can only be added once `LookupTableMeta` is out of
+// `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
 /// Address lookup table metadata
 #[derive(
     Debug,
@@ -39,7 +41,7 @@ pub enum LookupTableStatus {
     PartialEq,
     Eq,
     Clone,
-    /* AbiExample, // This can only be added once `LookupTableMeta` is out of the SDK */
+    /* AbiExample, */
 )]
 pub struct LookupTableMeta {
     /// Lookup tables cannot be closed until the deactivation slot is
@@ -127,6 +129,8 @@ impl LookupTableMeta {
     }
 }
 
+// TODO: `Abi` & `AbiExample` can only be added once `ProgramState` is out of
+// `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
 /// Program account states
 #[derive(
     Debug,
@@ -135,8 +139,8 @@ impl LookupTableMeta {
     PartialEq,
     Eq,
     Clone,
-    /* AbiExample,      // This can only be added once `ProgramState` is out of the SDK
-     * AbiEnumVisitor,  // This can only be added once `ProgramState` is out of the SDK */
+    /* AbiExample,
+     * AbiEnumVisitor, */
 )]
 #[allow(clippy::large_enum_variant)]
 pub enum ProgramState {
@@ -157,12 +161,14 @@ impl ProgramState {
     }
 }
 
+// TODO: `Abi` & `AbiExample` can only be added once `AddressLookupTable` is out
+// of `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
 #[derive(
     Debug,
     PartialEq,
     Eq,
     Clone,
-    /* AbiExample, // This can only be added once `AddressLookupTable` is out of the SDK */
+    /* AbiExample, */
 )]
 pub struct AddressLookupTable<'a> {
     pub meta: LookupTableMeta,

@@ -12,7 +12,6 @@ use {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum ProgramInstruction {
-    // Have to preserve legacy built-in ABI compatibility
     /// Create an address lookup table
     ///
     /// # Account references

@@ -28,11 +28,11 @@ but because these live outside of `solana_program` but the original built-in
 ALT program lives within `solana_program`, there are trait collisions when
 these are added to the program.
 
-We'll need to remove all of the built-in ALT code from the SDK in order to
-properly add these trait implementations to the Core BPF source.
+At the time of this writing, I've created a PR to remove the Address Lookup
+Table program's instruction, state, etc. from `solana-program`, which should
+solve the issue.
 
-This can likely be done in a single step when we replace the ALT source code
-within the Solana SDK with the Core BPF program's crate.
+<https://github.com/solana-labs/solana/pull/35275>
 
 ### Error Codes
 
