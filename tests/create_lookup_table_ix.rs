@@ -4,28 +4,18 @@ use {
     assert_matches::assert_matches,
     common::{assert_ix_error, setup_test_context},
     solana_program_test::*,
-    solana_sdk::{
-        clock::Slot, instruction::InstructionError, pubkey::Pubkey, signature::Signer,
-        transaction::Transaction,
-    },
-};
-#[cfg(feature = "relax-authority-checks-disabled")]
-use {
-    solana_programs_address_lookup_table::instruction::create_lookup_table_signed,
-    solana_sdk::signer::keypair::Keypair,
-};
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
-use {
     solana_programs_address_lookup_table::{
         instruction::create_lookup_table,
         state::{AddressLookupTable, LOOKUP_TABLE_META_SIZE},
     },
-    solana_sdk::rent::Rent,
+    solana_sdk::{
+        clock::Slot, instruction::InstructionError, pubkey::Pubkey, rent::Rent, signature::Signer,
+        transaction::Transaction,
+    },
 };
 
 mod common;
 
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
 #[tokio::test]
 async fn test_create_lookup_table_idempotent() {
     let mut context = setup_test_context().await;
@@ -89,99 +79,6 @@ async fn test_create_lookup_table_idempotent() {
     }
 }
 
-// This check is intended to run with the
-// `relax_authority_signer_check_for_lookup_table_creation` feature disabled.
-// ie.: `cargo test-sbf --features relax-authority-checks-disabled`
-#[cfg(feature = "relax-authority-checks-disabled")]
-#[tokio::test]
-async fn test_create_lookup_table_not_idempotent() {
-    let mut context = setup_test_context().await;
-
-    let test_recent_slot = 123;
-    context.warp_to_slot(test_recent_slot).unwrap();
-
-    let client = &mut context.banks_client;
-    let payer = &context.payer;
-    let recent_blockhash = context.last_blockhash;
-    let authority_keypair = Keypair::new();
-    let authority_address = authority_keypair.pubkey();
-    let (create_lookup_table_ix, ..) =
-        create_lookup_table_signed(authority_address, payer.pubkey(), test_recent_slot);
-
-    let transaction = Transaction::new_signed_with_payer(
-        &[create_lookup_table_ix.clone()],
-        Some(&payer.pubkey()),
-        &[payer, &authority_keypair],
-        recent_blockhash,
-    );
-
-    assert_matches!(client.process_transaction(transaction).await, Ok(()));
-
-    // Second create should fail
-    {
-        context.last_blockhash = client
-            .get_new_latest_blockhash(&recent_blockhash)
-            .await
-            .unwrap();
-        assert_ix_error(
-            &mut context,
-            create_lookup_table_ix,
-            Some(&authority_keypair),
-            InstructionError::AccountAlreadyInitialized,
-        )
-        .await;
-    }
-}
-
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
-#[tokio::test]
-async fn test_create_lookup_table_use_payer_as_authority() {
-    let mut context = setup_test_context().await;
-
-    let test_recent_slot = 123;
-    context.warp_to_slot(test_recent_slot).unwrap();
-
-    let client = &mut context.banks_client;
-    let payer = &context.payer;
-    let recent_blockhash = context.last_blockhash;
-    let authority_address = payer.pubkey();
-    let transaction = Transaction::new_signed_with_payer(
-        &[create_lookup_table(authority_address, payer.pubkey(), test_recent_slot).0],
-        Some(&payer.pubkey()),
-        &[payer],
-        recent_blockhash,
-    );
-
-    assert_matches!(client.process_transaction(transaction).await, Ok(()));
-}
-
-// This check is intended to run with the
-// `relax_authority_signer_check_for_lookup_table_creation` feature disabled.
-// ie.: `cargo test-sbf --features relax-authority-checks-disabled`
-#[cfg(feature = "relax-authority-checks-disabled")]
-#[tokio::test]
-async fn test_create_lookup_table_missing_signer() {
-    let mut context = setup_test_context().await;
-    let unsigned_authority_address = Pubkey::new_unique();
-
-    let mut ix = create_lookup_table_signed(
-        unsigned_authority_address,
-        context.payer.pubkey(),
-        Slot::MAX,
-    )
-    .0;
-    ix.accounts[1].is_signer = false;
-
-    assert_ix_error(
-        &mut context,
-        ix,
-        None,
-        InstructionError::MissingRequiredSignature,
-    )
-    .await;
-}
-
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
 #[tokio::test]
 async fn test_create_lookup_table_not_recent_slot() {
     let mut context = setup_test_context().await;
@@ -199,7 +96,6 @@ async fn test_create_lookup_table_not_recent_slot() {
     .await;
 }
 
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
 #[tokio::test]
 async fn test_create_lookup_table_pda_mismatch() {
     let mut context = setup_test_context().await;

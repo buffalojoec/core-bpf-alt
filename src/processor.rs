@@ -1,9 +1,8 @@
 //! Program processor
 
-#[cfg(not(feature = "relax-authority-checks-disabled"))]
-use crate::check_id;
 use {
     crate::{
+        check_id,
         instruction::ProgramInstruction,
         state::{
             AddressLookupTable, LookupTableStatus, ProgramState, LOOKUP_TABLE_MAX_ADDRESSES,
@@ -35,6 +34,14 @@ where
     .map_err(|_| ProgramError::InvalidInstructionData)
 }
 
+// Feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
+// (relax_authority_signer_check_for_lookup_table_creation) is now enabled on
+// all clusters, so the relevant checks have not been included in the Core BPF
+// implementation.
+// - Testnet:       Epoch 586
+// - Devnet:        Epoch 591
+// - Mainnet-Beta:  epoch 577
+//
 fn process_create_lookup_table(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -47,47 +54,6 @@ fn process_create_lookup_table(
     let authority_info = next_account_info(accounts_iter)?;
     let payer_info = next_account_info(accounts_iter)?;
     let _system_program_info = next_account_info(accounts_iter)?;
-
-    // Feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
-    // (relax_authority_signer_check_for_lookup_table_creation) is enabled on
-    // only testnet and devnet, but not mainnet-beta.
-    // - Testnet:       Epoch 586
-    // - Devnet:        Epoch 591
-    // - Mainnet-Beta:  Inactive
-    //
-    // At the time of this writing, this feature is first on the list for the
-    // Mainnet-Beta Feature Gate Activation Schedule.
-    // https://github.com/solana-labs/solana/wiki/Feature-Gate-Activation-Schedule
-    //
-    // It's my recommendation that we wait until after this feature is
-    // activated on Mainnet-Beta before migrating Address Lookup Table to BPF,
-    // removing these checks beforehand.
-    //
-    // Alternatively, we can fall back to this proposal if the feature is not
-    // activated by the time we want to migrate to BPF.
-    // https://github.com/solana-foundation/solana-improvement-documents/pull/99
-    //
-    // In the meantime, in order to fully test the BPF version of the program,
-    // I've gated this functionality behind a feature flag.
-    // `relax-authority-checks-disabled` should be provided to `cargo test-sbf`
-    // in order to run the tests that depend on the checks being present, which
-    // will be disabled once the feature is activated on Mainnet-Beta.
-    //
-    // Check not required after "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
-    // is activated on mainnet-beta.
-    #[cfg(feature = "relax-authority-checks-disabled")]
-    if !lookup_table_info.data_is_empty() {
-        msg!("Table account must not be allocated");
-        return Err(ProgramError::AccountAlreadyInitialized);
-    }
-
-    // Check not required after "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
-    // is activated on mainnet-beta.
-    #[cfg(feature = "relax-authority-checks-disabled")]
-    if !authority_info.is_signer {
-        msg!("Authority account must be a signer");
-        return Err(ProgramError::MissingRequiredSignature);
-    }
 
     if !payer_info.is_signer {
         msg!("Payer account must be a signer");
@@ -132,10 +98,9 @@ fn process_create_lookup_table(
     }
 
     // This check _is required_ after
-    // "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap" is activated on
+    // "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap" was activated on
     // mainnet-beta.
     // See https://github.com/solana-labs/solana/blob/e4064023bf7936ced97b0d4de22137742324983d/programs/address-lookup-table/src/processor.rs#L129-L135
-    #[cfg(not(feature = "relax-authority-checks-disabled"))]
     if check_id(lookup_table_info.owner) {
         return Ok(());
     }

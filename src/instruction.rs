@@ -83,36 +83,6 @@ pub fn derive_lookup_table_address(
     )
 }
 
-// Instruction not required after
-// "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap" is activated on mainnet-beta.
-#[cfg(feature = "relax-authority-checks-disabled")]
-/// Constructs an instruction to create a table account and returns
-/// the instruction and the table account's derived address.
-pub fn create_lookup_table_signed(
-    authority_address: Pubkey,
-    payer_address: Pubkey,
-    recent_slot: Slot,
-) -> (Instruction, Pubkey) {
-    let (lookup_table_address, bump_seed) =
-        derive_lookup_table_address(&authority_address, recent_slot);
-
-    let instruction = Instruction::new_with_bincode(
-        crate::id(),
-        &ProgramInstruction::CreateLookupTable {
-            recent_slot,
-            bump_seed,
-        },
-        vec![
-            AccountMeta::new(lookup_table_address, false),
-            AccountMeta::new_readonly(authority_address, true), // Signer
-            AccountMeta::new(payer_address, true),
-            AccountMeta::new_readonly(system_program::id(), false),
-        ],
-    );
-
-    (instruction, lookup_table_address)
-}
-
 /// Constructs an instruction to create a table account and returns
 /// the instruction and the table account's derived address.
 pub fn create_lookup_table(

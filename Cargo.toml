@@ -5,7 +5,6 @@ description = "Solana Address Lookup Table Program"
 edition = "2021"
 
 [features]
-relax-authority-checks-disabled = []
 no-entrypoint = []
 test-sbf = []
 

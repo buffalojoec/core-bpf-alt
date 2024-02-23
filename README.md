@@ -4,23 +4,6 @@ This PR introduces the Address Lookup Table program reimplemented to Core BPF.
 
 Some notable points of contention with this implementation are defined below.
 
-### Feature `relax_authority_signer_check_for_lookup_table_creation`
-
-Feature
-[`FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap`](https://github.com/solana-labs/solana/issues/27205)
-should be activated on mainnet-beta before Address Lookup Table is ported to
-Core BPF, since this will simplify the program's interface. It's next up in the
-queue.
-
-This feature ID decorates all call sites which can be removed from the Core BPF
-implementation once activated. They include:
-
-- Instruction for creating a lookup table "signed".
-- Processor checks for authority signatures on create.
-- Tests ensuring authority checks are conducted.
-- The Rust feature flag I'm using to mock this feature ID:
-  `relax-authority-checks-disabled`.
-
 ### Error Codes
 
 Since built-in programs throw `InstructionError` and BPF programs throw
