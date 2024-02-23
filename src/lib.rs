@@ -1,4 +1,6 @@
 //! Address Lookup Table Program
+#![allow(incomplete_features)]
+#![cfg_attr(RUSTC_WITH_SPECIALIZATION, feature(specialization))]
 
 #[cfg(not(feature = "no-entrypoint"))]
 mod entrypoint;

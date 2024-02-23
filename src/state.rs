@@ -1,7 +1,7 @@
 use {
     crate::error::{AddressLookupError, MapToProgramIoError},
     serde::{Deserialize, Serialize},
-    // solana_frozen_abi_macro::{AbiEnumVisitor, AbiExample},
+    solana_frozen_abi_macro::{AbiEnumVisitor, AbiExample},
     solana_program::{
         clock::Slot, program_error::ProgramError, pubkey::Pubkey, slot_hashes::MAX_ENTRIES,
     },
@@ -31,18 +31,8 @@ pub enum LookupTableStatus {
     Deactivated,
 }
 
-// TODO: `Abi` & `AbiExample` can only be added once `LookupTableMeta` is out of
-// `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
 /// Address lookup table metadata
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    Clone,
-    /* AbiExample, */
-)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, AbiExample)]
 pub struct LookupTableMeta {
     /// Lookup tables cannot be closed until the deactivation slot is
     /// no longer "recent" (not accessible in the `SlotHashes` sysvar).
@@ -129,19 +119,8 @@ impl LookupTableMeta {
     }
 }
 
-// TODO: `Abi` & `AbiExample` can only be added once `ProgramState` is out of
-// `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
 /// Program account states
-#[derive(
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    Clone,
-    /* AbiExample,
-     * AbiEnumVisitor, */
-)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, AbiExample, AbiEnumVisitor)]
 #[allow(clippy::large_enum_variant)]
 pub enum ProgramState {
     /// Account is not initialized.
@@ -161,15 +140,7 @@ impl ProgramState {
     }
 }
 
-// TODO: `Abi` & `AbiExample` can only be added once `AddressLookupTable` is out
-// of `solana_program`. See https://github.com/solana-labs/solana/pull/35275.
-#[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    /* AbiExample, */
-)]
+#[derive(Debug, PartialEq, Eq, Clone, AbiExample)]
 pub struct AddressLookupTable<'a> {
     pub meta: LookupTableMeta,
     pub addresses: Cow<'a, [Pubkey]>,

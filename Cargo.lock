@@ -4013,6 +4013,7 @@ dependencies = [
  "bincode",
  "bytemuck",
  "log",
+ "rustc_version",
  "serde",
  "solana-frozen-abi",
  "solana-frozen-abi-macro",

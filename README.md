@@ -21,19 +21,6 @@ implementation once activated. They include:
 - The Rust feature flag I'm using to mock this feature ID:
   `relax-authority-checks-disabled`.
 
-### `solana_frozen_abi`
-
-Members of the ALT program's state implement `AbiEnumVisitor` and `AbiExample`,
-but because these live outside of `solana_program` but the original built-in
-ALT program lives within `solana_program`, there are trait collisions when
-these are added to the program.
-
-At the time of this writing, I've created a PR to remove the Address Lookup
-Table program's instruction, state, etc. from `solana-program`, which should
-solve the issue.
-
-<https://github.com/solana-labs/solana/pull/35275>
-
 ### Error Codes
 
 Since built-in programs throw `InstructionError` and BPF programs throw
