@@ -14,6 +14,8 @@ pub const LOOKUP_TABLE_MAX_ADDRESSES: usize = 256;
 /// The serialized size of lookup table metadata
 pub const LOOKUP_TABLE_META_SIZE: usize = 56;
 
+// [Core BPF]: Newly-implemented logic for calculating slot position relative
+// to the current slot on the `Clock`.
 fn calculate_slot_position(target_slot: &Slot, current_slot: &Slot) -> Option<usize> {
     let position = current_slot.saturating_sub(*target_slot);
 
@@ -34,6 +36,7 @@ pub enum LookupTableStatus {
 /// Address lookup table metadata
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, AbiExample)]
 pub struct LookupTableMeta {
+    // [Core BPF]: TODO: `Clock` instead of `SlotHashes`.
     /// Lookup tables cannot be closed until the deactivation slot is
     /// no longer "recent" (not accessible in the `SlotHashes` sysvar).
     pub deactivation_slot: Slot,
@@ -81,10 +84,10 @@ impl LookupTableMeta {
         }
     }
 
-    // This function has been modified from its legacy built-in counterpart
-    // to no longer use the `SlotHashes` sysvar, since it is not available
-    // for BPF programs. Instead, it uses the `current_slot` parameter to
-    // calculate the table's status.
+    // [Core BPF]: This function has been modified from its legacy built-in
+    // counterpart to no longer use the `SlotHashes` sysvar, since it is not
+    // available for BPF programs. Instead, it uses the `current_slot`
+    // parameter to calculate the table's status.
     // This will no longer consider the case where a slot has been skipped
     // and no block was produced.
     // If it's imperative to ensure we are only considering slots where blocks
@@ -101,6 +104,7 @@ impl LookupTableMeta {
         } else if let Some(slot_position) =
             calculate_slot_position(&self.deactivation_slot, &current_slot)
         {
+            // [Core BPF]: TODO: `Clock` instead of `SlotHashes`.
             // Deactivation requires a cool-down period to give in-flight transactions
             // enough time to land and to remove indeterminism caused by transactions
             // loading addresses in the same slot when a table is closed. The
@@ -136,9 +140,10 @@ impl ProgramState {
         authority_key: &Pubkey,
     ) -> Result<(), ProgramError> {
         let lookup_table = ProgramState::LookupTable(LookupTableMeta::new(*authority_key));
-        // The original builtin implementation mapped `bincode` serialization
-        // errors to `InstructionError::GenericError`, but this error is
-        // deprecated. The error code for failed serialization has changed.
+        // [Core BPF]: The original builtin implementation mapped `bincode`
+        // serialization errors to `InstructionError::GenericError`, but this
+        // error is deprecated. The error code for failed serialization has
+        // changed.
         bincode::serialize_into(data, &lookup_table).map_err(|_| ProgramError::InvalidAccountData)
     }
 }
@@ -161,9 +166,10 @@ impl<'a> AddressLookupTable<'a> {
             .ok_or(ProgramError::InvalidAccountData)?;
         meta_data.fill(0);
         bincode::serialize_into(meta_data, &ProgramState::LookupTable(lookup_table_meta))
-            // The original builtin implementation mapped `bincode` serialization
-            // errors to `InstructionError::GenericError`, but this error is
-            // deprecated. The error code for failed serialization has changed.
+            // [Core BPF]: The original builtin implementation mapped `bincode`
+            // serialization errors to `InstructionError::GenericError`, but this
+            // error is deprecated. The error code for failed serialization has
+            // changed.
             .map_err(|_| ProgramError::InvalidAccountData)
     }
 
@@ -352,8 +358,8 @@ mod tests {
                 remaining_blocks: MAX_ENTRIES.saturating_add(1),
             }
         );
-        // TODO: These tests relies on specifically slot hashes being divergent
-        // from the current slot.
+        // [Core BPF]: TODO: These tests relies on specifically slot hashes
+        // being divergent from the current slot.
         // assert_eq!(
         //     recently_started_deactivating_table.status(current_slot),
         //     LookupTableStatus::Deactivating {

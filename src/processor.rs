@@ -24,24 +24,25 @@ use {
     },
 };
 
+// [Core BPF]: Locally-implemented
+// `solana_sdk::program_utils::limited_deserialize`.
 fn limited_deserialize<T>(input: &[u8]) -> Result<T, ProgramError>
 where
     T: serde::de::DeserializeOwned,
 {
     solana_program::program_utils::limited_deserialize(
-        input, 1232, // See `solana_sdk::packet::PACKET_DATA_SIZE`
+        input, 1232, // [Core BPF]: See `solana_sdk::packet::PACKET_DATA_SIZE`
     )
     .map_err(|_| ProgramError::InvalidInstructionData)
 }
 
-// Feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
+// [Core BPF]: Feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
 // (relax_authority_signer_check_for_lookup_table_creation) is now enabled on
 // all clusters, so the relevant checks have not been included in the Core BPF
 // implementation.
 // - Testnet:       Epoch 586
 // - Devnet:        Epoch 591
 // - Mainnet-Beta:  epoch 577
-//
 fn process_create_lookup_table(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -60,8 +61,9 @@ fn process_create_lookup_table(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Since the `SlotHashes` sysvar is not available to BPF programs, checking
-    // if a slot is a valid recent slot must be done differently.
+    // [Core BPF]: Since the `SlotHashes` sysvar is not available to BPF
+    // programs, checking if a slot is a valid recent slot must be done
+    // differently.
     // The `SlotHashes` sysvar stores up to `512` recent slots (`MAX_ENTRIES`).
     // We can instead use the `Clock` sysvar and do this math manually.
     //
@@ -97,10 +99,10 @@ fn process_create_lookup_table(
         return Err(ProgramError::InvalidArgument);
     }
 
-    // This check _is required_ after
+    // [Core BPF]: This check _is required_ since
     // "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap" was activated on
     // mainnet-beta.
-    // See https://github.com/solana-labs/solana/blob/e4064023bf7936ced97b0d4de22137742324983d/programs/address-lookup-table/src/processor.rs#L129-L135
+    // See https://github.com/solana-labs/solana/blob/e4064023bf7936ced97b0d4de22137742324983d/programs/address-lookup-table/src/processor.rs#L129-L135.
     if check_id(lookup_table_info.owner) {
         return Ok(());
     }
@@ -125,7 +127,7 @@ fn process_create_lookup_table(
         &[&[
             authority_info.key.as_ref(),
             &derivation_slot.to_le_bytes(),
-            &[bump_seed], // We _could_ eliminate this from the instruction
+            &[bump_seed],
         ]],
     )?;
 
@@ -135,7 +137,7 @@ fn process_create_lookup_table(
         &[&[
             authority_info.key.as_ref(),
             &derivation_slot.to_le_bytes(),
-            &[bump_seed], // We _could_ eliminate this from the instruction
+            &[bump_seed],
         ]],
     )?;
 
@@ -168,12 +170,12 @@ fn process_freeze_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) ->
 
         if lookup_table.meta.authority.is_none() {
             msg!("Lookup table is already frozen");
-            // TODO: Should be `ProgramError::Immutable`
+            // [Core BPF]: TODO: Should be `ProgramError::Immutable`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
         if lookup_table.meta.authority != Some(*authority_info.key) {
-            // TODO: Should be `ProgramError::IncorrectAuthority`
+            // [Core BPF]: TODO: Should be `ProgramError::IncorrectAuthority`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
@@ -223,12 +225,12 @@ fn process_extend_lookup_table(
 
         if lookup_table.meta.authority.is_none() {
             msg!("Lookup table is frozen");
-            // TODO: Should be `ProgramError::Immutable`
+            // [Core BPF]: TODO: Should be `ProgramError::Immutable`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
         if lookup_table.meta.authority != Some(*authority_info.key) {
-            // TODO: Should be `ProgramError::IncorrectAuthority`
+            // [Core BPF]: TODO: Should be `ProgramError::IncorrectAuthority`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
@@ -340,12 +342,12 @@ fn process_deactivate_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]
 
         if lookup_table.meta.authority.is_none() {
             msg!("Lookup table is frozen");
-            // TODO: Should be `ProgramError::Immutable`
+            // [Core BPF]: TODO: Should be `ProgramError::Immutable`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
         if lookup_table.meta.authority != Some(*authority_info.key) {
-            // TODO: Should be `ProgramError::IncorrectAuthority`
+            // [Core BPF]: TODO: Should be `ProgramError::IncorrectAuthority`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
@@ -384,8 +386,8 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    // Here the legacy built-in version of ALT fallibly checks to ensure the
-    // number of instruction accounts is 3.
+    // [Core BPF]: Here the legacy built-in version of ALT fallibly checks to
+    // ensure the number of instruction accounts is 3.
     // It also checks that the recipient account is not the same as the lookup
     // table account.
     // The built-in does this by specifically checking the account keys at
@@ -402,21 +404,21 @@ fn process_close_lookup_table(program_id: &Pubkey, accounts: &[AccountInfo]) -> 
 
         if lookup_table.meta.authority.is_none() {
             msg!("Lookup table is frozen");
-            // TODO: Should be `ProgramError::Immutable`
+            // [Core BPF]: TODO: Should be `ProgramError::Immutable`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
         if lookup_table.meta.authority != Some(*authority_info.key) {
-            // TODO: Should be `ProgramError::IncorrectAuthority`
+            // [Core BPF]: TODO: Should be `ProgramError::IncorrectAuthority`
             // See https://github.com/solana-labs/solana/pull/35113
             return Err(ProgramError::Custom(0));
         }
 
         let clock = <Clock as Sysvar>::get()?;
 
-        // Again, since the `SlotHashes` sysvar is not available to BPF programs,
-        // we can't use the `SlotHashes` sysvar to check the status of a lookup
-        // table.
+        // [Core BPF]: Again, since the `SlotHashes` sysvar is not available to
+        // BPF programs, we can't use the `SlotHashes` sysvar to check the
+        // status of a lookup table.
         // Again we instead use the `Clock` sysvar here.
         // This will no longer consider skipped slots wherein a block was not
         // produced.

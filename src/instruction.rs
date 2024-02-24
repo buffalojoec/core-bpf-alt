@@ -83,6 +83,11 @@ pub fn derive_lookup_table_address(
     )
 }
 
+// [Core BPF]: `create_lookup_table_signed` has been removed, since feature
+// "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
+// (relax_authority_signer_check_for_lookup_table_creation) has been activated
+// on all clusters.
+
 /// Constructs an instruction to create a table account and returns
 /// the instruction and the table account's derived address.
 pub fn create_lookup_table(

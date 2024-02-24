@@ -103,6 +103,7 @@ async fn test_close_lookup_table_deactivated_in_current_slot() {
         context.payer.pubkey(),
     );
 
+    // [Core BPF]: This still holds true while using `Clock`.
     // Context sets up the slot hashes sysvar to have an entry
     // for slot 0 which is when the table was deactivated.
     // Because that slot is present, the ix should fail.
@@ -134,6 +135,7 @@ async fn test_close_lookup_table_recently_deactivated() {
         context.payer.pubkey(),
     );
 
+    // [Core BPF]: This still holds true while using `Clock`.
     // Context sets up the slot hashes sysvar to have an entry
     // for slot 0 which is when the table was deactivated.
     // Because that slot is present, the ix should fail.
@@ -165,7 +167,7 @@ async fn test_close_immutable_lookup_table() {
         &mut context,
         ix,
         Some(&authority),
-        // TODO: Should be `ProgramError::Immutable`
+        // [Core BPF]: TODO: Should be `ProgramError::Immutable`
         // See https://github.com/solana-labs/solana/pull/35113
         // InstructionError::Immutable,
         InstructionError::Custom(0),
@@ -193,7 +195,7 @@ async fn test_close_lookup_table_with_wrong_authority() {
         &mut context,
         ix,
         Some(&wrong_authority),
-        // TODO: Should be `ProgramError::Immutable`
+        // [Core BPF]: TODO: Should be `ProgramError::Immutable`
         // See https://github.com/solana-labs/solana/pull/35113
         // InstructionError::IncorrectAuthority,
         InstructionError::Custom(0),

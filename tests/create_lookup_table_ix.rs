@@ -16,11 +16,17 @@ use {
 
 mod common;
 
+// [Core BPF]: Tests that assert proper authority checks have been removed,
+// since feature "FKAcEvNgSY79RpqsPNUV5gDyumopH4cEHqUxyfm8b8Ap"
+// (relax_authority_signer_check_for_lookup_table_creation) has been activated
+// on all clusters.
+
 #[tokio::test]
 async fn test_create_lookup_table_idempotent() {
     let mut context = setup_test_context().await;
 
     let test_recent_slot = 123;
+    // [Core BPF]: Warping to slot instead of overwriting `SlotHashes`.
     context.warp_to_slot(test_recent_slot).unwrap();
 
     let client = &mut context.banks_client;
@@ -101,6 +107,7 @@ async fn test_create_lookup_table_pda_mismatch() {
     let mut context = setup_test_context().await;
 
     let test_recent_slot = 123;
+    // [Core BPF]: Warping to slot instead of overwriting `SlotHashes`.
     context.warp_to_slot(test_recent_slot).unwrap();
 
     let payer = &context.payer;

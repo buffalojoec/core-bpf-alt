@@ -1,3 +1,5 @@
+//! Program error types
+
 #[cfg(not(target_os = "solana"))]
 use solana_program::message::AddressLoaderError;
 use spl_program_error::*;
