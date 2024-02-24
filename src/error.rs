@@ -1,25 +1,6 @@
 #[cfg(not(target_os = "solana"))]
 use solana_program::message::AddressLoaderError;
-use {solana_program::program_error::ProgramError, spl_program_error::*};
-
-// The legacy built-in ALT program maps all bincode errors to
-// `InstructionError::GenericError`.
-// Since this error is deprecated, it shouldn't be migrated to `ProgramError`,
-// like the other errors added in this PR:
-// https://github.com/solana-labs/solana/pull/35113.
-// Instead, we should perhaps consider adding a `ProgramError::BincodeIoError`
-// or generalizing the `ProgramError::BorshIoError` to `ProgramError::IoError`.
-// In either case, we'll need to implement `Into<ProgramError>` for
-// `bincode::Error`.
-// In the meantime, this is a temporary solution.
-pub trait MapToProgramIoError<T> {
-    fn map_to_program_io_error(self) -> Result<T, ProgramError>;
-}
-impl<T> MapToProgramIoError<T> for Result<T, bincode::Error> {
-    fn map_to_program_io_error(self) -> Result<T, ProgramError> {
-        self.map_err(|e| ProgramError::BorshIoError(e.to_string()))
-    }
-}
+use spl_program_error::*;
 
 #[spl_program_error]
 pub enum AddressLookupError {

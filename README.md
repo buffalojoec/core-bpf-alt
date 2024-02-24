@@ -19,12 +19,6 @@ in `InstructionError`. I've added these variants in this PR.
 
 We simply have to wait until those errors are available with the next release.
 
-Additionally, we should consider adding `bincode` support to
-`Into<ProgramError>`, especially if we plan to continue to use `bincode` within
-Core BPF programs.
-
-See my notes in [`error.rs`](./src/error.rs);
-
 ### Program-Test
 
 `solana-program-test` will not overwrite a built-in if the BPF program you've

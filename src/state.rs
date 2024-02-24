@@ -1,5 +1,5 @@
 use {
-    crate::error::{AddressLookupError, MapToProgramIoError},
+    crate::error::AddressLookupError,
     serde::{Deserialize, Serialize},
     solana_frozen_abi_macro::{AbiEnumVisitor, AbiExample},
     solana_program::{
@@ -136,7 +136,10 @@ impl ProgramState {
         authority_key: &Pubkey,
     ) -> Result<(), ProgramError> {
         let lookup_table = ProgramState::LookupTable(LookupTableMeta::new(*authority_key));
-        bincode::serialize_into(data, &lookup_table).map_to_program_io_error()
+        // The original builtin implementation mapped `bincode` serialization
+        // errors to `InstructionError::GenericError`, but this error is
+        // deprecated. The error code for failed serialization has changed.
+        bincode::serialize_into(data, &lookup_table).map_err(|_| ProgramError::InvalidAccountData)
     }
 }
 
@@ -158,8 +161,10 @@ impl<'a> AddressLookupTable<'a> {
             .ok_or(ProgramError::InvalidAccountData)?;
         meta_data.fill(0);
         bincode::serialize_into(meta_data, &ProgramState::LookupTable(lookup_table_meta))
-            .map_to_program_io_error()?;
-        Ok(())
+            // The original builtin implementation mapped `bincode` serialization
+            // errors to `InstructionError::GenericError`, but this error is
+            // deprecated. The error code for failed serialization has changed.
+            .map_err(|_| ProgramError::InvalidAccountData)
     }
 
     /// Get the length of addresses that are active for lookups
