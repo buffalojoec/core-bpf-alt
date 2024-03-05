@@ -15,7 +15,9 @@ use {
 };
 
 pub async fn setup_test_context() -> ProgramTestContext {
-    let program_test = ProgramTest::new(
+    let mut program_test = ProgramTest::default();
+    program_test.prefer_bpf(false);
+    program_test.add_program(
         "solana_programs_address_lookup_table",
         solana_programs_address_lookup_table::id(),
         processor!(solana_programs_address_lookup_table::processor::process),

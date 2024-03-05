@@ -13,4 +13,4 @@ All Core BPF implementation notes prefixed with:
 - `InstructionError::Immutable` has no `ProgramError` counterpart ([#35113](https://github.com/solana-labs/solana/pull/35113)).
 - `InstructionError::IncorrectAuthority` has no `ProgramError` counterpart ([#35113](https://github.com/solana-labs/solana/pull/35113)).
 - `solana-program-test` will not overwrite a built-in if the BPF program you've
-  provided shares the same address as an existing built-in ([#35242](https://github.com/solana-labs/solana/pull/35242)).
+  provided shares the same address as an existing built-in ([#35233](https://github.com/solana-labs/solana/pull/35233)).
